@@ -7,7 +7,7 @@ A utility to expand module names in OCaml programs
 """
 maintainer: "Kenichi Asai <asai@is.ocha.ac.jp>"
 authors: "Kenichi Asai <asai@is.ocha.ac.jp>"
-license: "MIT"
+license: "MIT AND LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception"
 homepage: "https://github.com/kenichi-asai/expand-open"
 bug-reports: "https://github.com/kenichi-asai/expand-open/issues"
 depends: [ "ocaml" "ocamlfind" "dune" ]
