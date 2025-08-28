@@ -1,2 +1,2 @@
 let () =
-  exit (Maindriver.main Sys.argv Format.err_formatter)
+  exit (My_maindriver.main Sys.argv Format.err_formatter)

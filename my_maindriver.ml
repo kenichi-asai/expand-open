@@ -33,8 +33,8 @@ let main argv ppf =
     begin try
       Compenv.process_deferred_actions
         (ppf,
-         Compile.implementation,
-         Compile.interface,
+         My_compile.implementation,
+         My_compile.interface,
          ".cmo",
          ".cma");
     with Arg.Bad msg ->

@@ -109,7 +109,7 @@ let typecheck_impl i parsetree =
   |> print_if i.ppf_dump Clflags.dump_shape
     (fun fmt {Typedtree.shape; _} -> Shape.print fmt shape)
 
-let implementation info ~backend =
+let[@warning "-27"] implementation info ~backend =
   Profile.record_call info.source_file @@ fun () ->
   let exceptionally () =
     let sufs = if info.native then [ cmx; obj ] else [ cmo ] in
@@ -118,9 +118,12 @@ let implementation info ~backend =
   Misc.try_finally ?always:None ~exceptionally (fun () ->
     let parsed = parse_impl info in
     if Clflags.(should_stop_after Compiler_pass.Parsing) then () else begin
+      Clflags.dont_write_files := true;
       let typed = typecheck_impl info parsed in
       if Clflags.(should_stop_after Compiler_pass.Typing) then () else begin
-        backend info typed
+        let str = My_untypeast.untype_structure typed.structure in
+        Format.fprintf Format.std_formatter "%a\n" My_pprintast.structure str;
+        exit 2
       end;
     end;
     Warnings.check_fatal ();

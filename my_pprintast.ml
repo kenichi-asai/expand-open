@@ -28,6 +28,20 @@ open Longident
 open Parsetree
 open Ast_helper
 
+let show_all = ref true
+
+(* truncate long list *)
+let truncate lst =
+  if !show_all then lst
+  else if 10 < List.length lst
+  then [List.hd lst; (* keep only the first few elements *)
+        List.hd (List.tl lst);
+        (* List.hd (List.tl (List.tl lst)); *)
+        (* Ast_helper.Exp.constant (Ast_helper.Const.string "...") *)
+        Ast_helper.Exp.ident (mknoloc (Longident.Lident "..."))
+       ]
+  else lst
+
 let prefix_symbols  = [ '!'; '?'; '~' ] ;;
 let infix_symbols = [ '='; '<'; '>'; '@'; '^'; '|'; '&'; '+'; '-'; '*'; '/';
                       '$'; '%'; '#' ]
@@ -228,7 +242,7 @@ let constant f = function
   | Pconst_char i ->
       pp f "%C"  i
   | Pconst_string (i, _, None) ->
-      pp f "%S" i
+      pp f "\"%s\"" i
   | Pconst_string (i, _, Some delim) ->
       pp f "{%s|%s|%s}" delim i delim
   | Pconst_integer (i, None) ->

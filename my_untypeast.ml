@@ -103,6 +103,49 @@ let rec lident_of_path = function
 
 let map_loc sub {loc; txt} = {loc = sub.location sub loc; txt}
 
+(* added for expand-open *)
+(* code derived and modified from:
+   https://github.com/metaocaml/ber-metaocaml/blob/ber-n114/typing/trx.ml *)
+
+(* Path.t -> Longident.t *)
+let rec path_to_lid path = match path with
+    Path.Pident (i) -> Lident (Ident.name i)
+  | Path.Pdot (Path.Pident (i), s) when Ident.name i = "Stdlib" -> Lident (s)
+  | Path.Pdot (p, s) -> Ldot (path_to_lid p, s)
+  | Path.Papply (p1, p2) -> Lapply (path_to_lid p1, path_to_lid p2)
+
+(* Path.t -> string -> Longident.t *)
+let path_to_lid_but_last path str = match path with
+    Path.Pident _   -> Lident str
+  | Path.Pdot (p, _) -> path_to_lid (Path.Pdot (p, str))
+  | _ -> assert false
+
+(* Longident.t loc -> Path.t -> Longident.t loc *)
+let qualify_ident {txt = _txt; loc = loc} path =
+  Location.mkloc (path_to_lid path) loc
+
+(* Longident.t loc -> constructor_description -> Longident.t loc *)
+let qualify_ctor ({txt = _txt; loc = loc} as lid) cdesc =
+  let path = Btype.cstr_type_path cdesc in
+  match path with
+    Path.Pdot (Path.Pdot (Path.Pident (i), "List") , _)
+      when Ident.name i = "Stdlib" && (cdesc.cstr_name = "[]" ||
+                                       cdesc.cstr_name = "::")
+    -> lid
+  | _ -> Location.mkloc (path_to_lid_but_last path cdesc.cstr_name) loc
+
+(* Longident.t loc -> label_description -> Longident.t loc *)
+let qualify_label {txt = _txt; loc = loc} ldesc =
+  let open Types in
+  match get_desc ldesc.lbl_res with
+  | Tconstr(path, _, _) ->
+      Location.mkloc (path_to_lid_but_last path ldesc.lbl_name) loc
+  | _ -> Printtyp.type_expr Format.err_formatter ldesc.lbl_res;
+         failwith ("qualify_label: cannot determine type from label " ^
+                   ldesc.lbl_name)
+
+(* added for expand-open up to here *)
+
 (** Try a name [$name$0], check if it's free, if not, increment and repeat. *)
 let fresh_name s env =
   let rec aux i =
@@ -330,7 +373,7 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
     | Tpat_constant cst -> Ppat_constant (constant cst)
     | Tpat_tuple list ->
         Ppat_tuple (List.map (sub.pat sub) list)
-    | Tpat_construct (lid, _, args, vto) ->
+    | Tpat_construct (lid, cdesc, args, vto) ->
         let tyo =
           match vto with
             None -> None
@@ -346,7 +389,7 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
           | [arg] -> Some (sub.pat sub arg)
           | args  -> Some (Pat.tuple ~loc (List.map (sub.pat sub) args))
         in
-        Ppat_construct (map_loc sub lid,
+        Ppat_construct (map_loc sub (qualify_ctor lid cdesc),
           match tyo, arg with
           | Some (vl, ty), Some arg ->
               Some (vl, Pat.mk ~loc (Ppat_constraint (arg, ty)))
@@ -355,8 +398,8 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
     | Tpat_variant (label, pato, _) ->
         Ppat_variant (label, Option.map (sub.pat sub) pato)
     | Tpat_record (list, closed) ->
-        Ppat_record (List.map (fun (lid, _, pat) ->
-            map_loc sub lid, sub.pat sub pat) list, closed)
+        Ppat_record (List.map (fun (lid, ldesc, pat) ->
+          map_loc sub (qualify_label lid ldesc), sub.pat sub pat) list, closed)
     | Tpat_array list -> Ppat_array (List.map (sub.pat sub) list)
     | Tpat_lazy p -> Ppat_lazy (sub.pat sub p)
 
@@ -401,7 +444,8 @@ let expression sub exp =
   let attrs = sub.attributes sub exp.exp_attributes in
   let desc =
     match exp.exp_desc with
-      Texp_ident (_path, lid, _) -> Pexp_ident (map_loc sub lid)
+      Texp_ident (path, lid, _) ->
+        Pexp_ident (map_loc sub (qualify_ident lid path))
     | Texp_constant cst -> Pexp_constant (constant cst)
     | Texp_let (rec_flag, list, exp) ->
         Pexp_let (rec_flag,
@@ -436,8 +480,8 @@ let expression sub exp =
         Pexp_try (sub.expr sub exp, List.map (sub.case sub) cases)
     | Texp_tuple list ->
         Pexp_tuple (List.map (sub.expr sub) list)
-    | Texp_construct (lid, _, args) ->
-        Pexp_construct (map_loc sub lid,
+    | Texp_construct (lid, cdesc, args) ->
+        Pexp_construct (map_loc sub (qualify_ctor lid cdesc),
           (match args with
               [] -> None
           | [ arg ] -> Some (sub.expr sub arg)
@@ -450,14 +494,15 @@ let expression sub exp =
     | Texp_record { fields; extended_expression; _ } ->
         let list = Array.fold_left (fun l -> function
             | _, Kept _ -> l
-            | _, Overridden (lid, exp) -> (lid, sub.expr sub exp) :: l)
+            | ldesc, Overridden (lid, exp) ->
+                (qualify_label lid ldesc, sub.expr sub exp) :: l)
             [] fields
         in
         Pexp_record (list, Option.map (sub.expr sub) extended_expression)
-    | Texp_field (exp, lid, _label) ->
-        Pexp_field (sub.expr sub exp, map_loc sub lid)
-    | Texp_setfield (exp1, lid, _label, exp2) ->
-        Pexp_setfield (sub.expr sub exp1, map_loc sub lid,
+    | Texp_field (exp, lid, ldesc) ->
+        Pexp_field (sub.expr sub exp, map_loc sub (qualify_label lid ldesc))
+    | Texp_setfield (exp1, lid, ldesc, exp2) ->
+        Pexp_setfield (sub.expr sub exp1, map_loc sub (qualify_label lid ldesc),
           sub.expr sub exp2)
     | Texp_array list ->
         Pexp_array (List.map (sub.expr sub) list)
