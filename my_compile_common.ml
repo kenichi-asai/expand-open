@@ -123,7 +123,7 @@ let[@warning "-27"] implementation info ~backend =
       if Clflags.(should_stop_after Compiler_pass.Typing) then () else begin
         let str = My_untypeast.untype_structure typed.structure in
         Format.fprintf Format.std_formatter "%a\n" My_pprintast.structure str;
-        exit 2
+        exit 0
       end;
     end;
     Warnings.check_fatal ();
