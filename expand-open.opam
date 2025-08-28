@@ -1,0 +1,16 @@
+opam-version: "2.0"
+name: "expand-open"
+version: "0.1"
+synopsis: "A utility to expand module names in OCaml programs"
+description: """
+A utility to expand module names in OCaml programs
+"""
+maintainer: "Kenichi Asai <asai@is.ocha.ac.jp>"
+authors: "Kenichi Asai <asai@is.ocha.ac.jp>"
+license: "MIT"
+homepage: "https://github.com/kenichi-asai/expand-open"
+bug-reports: "https://github.com/kenichi-asai/expand-open/issues"
+depends: [ "ocaml" "ocamlfind" "dune" ]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]

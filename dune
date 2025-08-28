@@ -1,0 +1,9 @@
+(executable
+ (name main)
+ (public_name expand-open)
+ (libraries
+  compiler-libs.bytecomp))
+
+(env
+ (dev
+  (flags (:standard -w -9))))
