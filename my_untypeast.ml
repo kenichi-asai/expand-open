@@ -191,7 +191,9 @@ let attribute sub a = {
 let attributes sub l = List.map (sub.attribute sub) l
 
 let structure sub str =
-  List.map (sub.structure_item sub) str.str_items
+  let str_items = List.filter (fun item -> match item.str_desc with
+    | Tstr_open _ -> false | _ -> true) str.str_items in
+  List.map (sub.structure_item sub) str_items
 
 let open_description sub od =
   let loc = sub.location sub od.open_loc in
@@ -563,7 +565,9 @@ let expression sub exp =
         Pexp_open (sub.open_declaration sub od, sub.expr sub exp)
   in
   List.fold_right (exp_extra sub) exp.exp_extra
-    (Exp.mk ~loc ~attrs desc)
+    (match desc with
+     | Pexp_open (_, exp) -> exp
+     | _ -> Exp.mk ~loc ~attrs desc)
 
 let binding_op sub bop pat =
   let pbop_op = bop.bop_op_name in
